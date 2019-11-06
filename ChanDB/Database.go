@@ -1,52 +1,14 @@
-package main
+package ChanDB
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"log"
 	"os"
 	"sync"
-	"time"
 )
 
-func main() {
-	log.SetFlags(log.Lshortfile)
-
-	db, err := CreateDB("db.txt")
-
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	//go func() {
-	//
-	//	db.fileHandle.Sync()
-	//
-	//}()
-
-	record := GetRecord()
-
-	for i := 0; i < 50000000; i++ {
-		db.Write(record)
-	}
-
-	//for i := 0; i < 25; i++ {
-	//	_, err := db.Read()
-	//
-	//	if err != nil {
-	//		log.Println(err, i)
-	//	}
-	//}
-
-	db.Read()
-	db.Read()
-	db.Read()
-
-}
-
-type ChanDB struct {
+type Database struct {
 	storageFile     string
 	fileHandle      *os.File
 	transactionLock *sync.Mutex
@@ -124,7 +86,7 @@ func (c *ChanDB) seekNextRecord() {
 	c.tokenPosition = position
 }
 
-func (c *ChanDB) Read() (string, error) {
+func (c *ChanDB) read() (string, error) {
 	c.transactionLock.Lock()
 	defer c.transactionLock.Unlock()
 
@@ -151,7 +113,7 @@ func (c *ChanDB) Read() (string, error) {
 	return row, nil
 }
 
-func (c *ChanDB) Write(payload string) error {
+func (c *ChanDB) write(payload string) error {
 	c.transactionLock.Lock()
 	defer c.transactionLock.Unlock()
 
@@ -164,22 +126,4 @@ func (c *ChanDB) Write(payload string) error {
 
 	c.dbSize += int64(num)
 	return nil
-}
-
-//todo: create a routine for garbage collection
-
-type Record struct {
-	Name string `json:"name"`
-	Time int64  `json:"time"`
-}
-
-func GetRecord() string {
-
-	payload, err := json.Marshal(&Record{Name: "Test record", Time: time.Now().UnixNano()})
-
-	if err != nil {
-		log.Println("Failed to marshal json in GetRecord()")
-		return ""
-	}
-	return string(payload)
 }
