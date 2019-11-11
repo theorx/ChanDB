@@ -38,6 +38,8 @@ func main() {
 
 	go func() {
 		defer wg.Done()
+		time.Sleep(time.Microsecond * 5000)
+
 		for i := 0; i < 1000; i++ {
 			time.Sleep(time.Microsecond)
 			_, err := db.Read()

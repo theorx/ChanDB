@@ -1,10 +1,11 @@
-package ChanDB
+package main
 
 import (
 	"bufio"
 	"errors"
 	"log"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -115,7 +116,14 @@ func (d *database) read(discardRecord bool) (string, error) {
 	d.transactionLock.Lock()
 	defer d.transactionLock.Unlock()
 
+	//TODO: Scanner is fucked up somehow
+	d.readScanner = bufio.NewScanner(d.fileHandle)
+	d.readScanner.Scan()
+
 	row := d.readScanner.Text()
+
+	log.Println(row)
+	log.Println(d.dbSize)
 
 	if d.tokenPosition == 0 && len(row) == 0 || d.tokenPosition >= d.dbSize {
 		d.seekNextRecord()
@@ -185,4 +193,52 @@ func (d *database) close() error {
 	d.syncQuitSignal = nil
 
 	return d.fileHandle.Sync()
+}
+
+func main() {
+	log.Println("Running..")
+
+	db := &database{
+		storageFile:              "test.txt",
+		syncIntervalMilliseconds: 100,
+	}
+
+	db.loadDatabase()
+
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 10; i++ {
+			time.Sleep(time.Microsecond)
+			db.write("Record numero#" + strconv.Itoa(i))
+		}
+
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 10; i++ {
+			time.Sleep(time.Microsecond)
+			msg, err := db.read(true)
+
+			if err != nil {
+				log.Println("FOOKING ERROR MATE", err)
+			} else {
+				log.Println("SUCCESS", msg)
+			}
+		}
+
+	}()
+
+	wg.Wait()
+
+	err := db.close()
+
+	log.Println(err)
+
+	db.fileHandle.Sync()
+
 }
