@@ -6,124 +6,179 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 )
 
-type Database struct {
-	storageFile     string
-	fileHandle      *os.File
-	transactionLock *sync.Mutex
-	dbSize          int64
-	tokenPosition   int64
-	readScanner     *bufio.Scanner
+type database struct {
+	storageFile              string
+	fileHandle               *os.File
+	transactionLock          *sync.Mutex
+	dbSize                   int64
+	tokenPosition            int64
+	readScanner              *bufio.Scanner
+	syncQuitSignal           chan bool
+	syncIntervalMilliseconds int
 }
 
-/**
- */
-func CreateDB(file string) (*ChanDB, error) {
-	//open database file
-	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		return nil, err
-	}
-
-	db := &ChanDB{
-		storageFile:     file,
-		fileHandle:      f,
-		transactionLock: &sync.Mutex{},
-		tokenPosition:   0,
-		dbSize:          0,
-		readScanner:     bufio.NewScanner(f), //will eventually move this initialization to the database initial start / restart logic
-	}
-
-	return db, db.loadDatabase()
+func (d *database) resetScanner() {
+	d.readScanner = bufio.NewScanner(d.fileHandle)
+	d.tokenPosition = 0
 }
 
-func (c *ChanDB) loadDatabase() error {
-	//write the database size (number of bytes within the file) to the internal variable
+func (d *database) loadDatabase() error {
+	log.Println("loadDatabase()", d.storageFile)
 
-	statInfo, err := c.fileHandle.Stat()
+	if d.transactionLock == nil {
+		d.transactionLock = &sync.Mutex{}
+	}
+
+	fh, err := os.OpenFile(d.storageFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
 
-	c.dbSize = statInfo.Size()
+	d.fileHandle = fh
+
+	//reset the scanner to position 0
+	d.resetScanner()
+
+	//write the database size (number of bytes within the file) to the internal variable
+	statInfo, err := d.fileHandle.Stat()
+	if err != nil {
+		return err
+	}
+	d.dbSize = statInfo.Size()
+	//handle sync
+
+	if d.syncQuitSignal != nil {
+		d.syncQuitSignal <- true
+	} else {
+		d.syncQuitSignal = make(chan bool, 0)
+	}
+
+	go d.syncRoutine()
 
 	return nil
 }
 
-func (c *ChanDB) seekNextRecord() {
-	//seek for the next "newline and space" -> "\n "
+func (d *database) syncRoutine() {
+	log.Println("Starting sync routine for", d.storageFile)
+	for {
+		select {
+		case <-d.syncQuitSignal:
+			log.Println("Quitting sync routine for", d.storageFile)
+			return
+		default:
+			//log.Println("Syncing..")
+			//err := d.fileHandle.Sync()
+			//if err != nil {
+			//	log.Println("Sync error on file", d.storageFile, ":", err)
+			//}
+			time.Sleep(time.Millisecond * time.Duration(d.syncIntervalMilliseconds))
+		}
+	}
+}
 
-	position := c.tokenPosition
-	scanner := c.readScanner
+func (d *database) seekNextRecord() {
+	position := d.tokenPosition
+	scanner := d.readScanner
 
 	for scanner.Scan() {
 		row := scanner.Text()
 
 		//Database out of bounds, no active records left
-		if len(row) == 0 && c.dbSize <= c.tokenPosition+1 {
-			log.Println("Reached the end of the file? record is empty, current position", position)
-			c.tokenPosition = c.dbSize
+		if len(row) == 0 && d.dbSize <= d.tokenPosition+1 {
+			//	log.Println("Reached the end of the file? record is empty, current position", position)
+			d.tokenPosition = d.dbSize
 			return
 		}
 
 		//handle empty records
-		if len(row) == 0 && c.dbSize > c.tokenPosition+1 {
+		if len(row) == 0 && d.dbSize > d.tokenPosition+1 {
 			position += 1
 			continue
 		}
 
 		if row[:1] == " " {
-			//log.Println("First 5 chars of the row", row[:5])
-			c.tokenPosition = position
-			//		log.Println(c.tokenPosition, position, "<<<<-")
+			d.tokenPosition = position
 			return
 		}
-		//	log.Println(c.tokenPosition, position, "<<<<-")
 		position += int64(len(row) + 1)
 	}
 
-	c.tokenPosition = position
+	d.tokenPosition = position
 }
 
-func (c *ChanDB) read() (string, error) {
-	c.transactionLock.Lock()
-	defer c.transactionLock.Unlock()
+func (d *database) read(discardRecord bool) (string, error) {
+	d.transactionLock.Lock()
+	defer d.transactionLock.Unlock()
 
-	row := c.readScanner.Text()
+	row := d.readScanner.Text()
 
-	if c.tokenPosition == 0 && len(row) == 0 || c.tokenPosition >= c.dbSize {
-		c.seekNextRecord()
-		row = c.readScanner.Text()
+	if d.tokenPosition == 0 && len(row) == 0 || d.tokenPosition >= d.dbSize {
+		d.seekNextRecord()
+		row = d.readScanner.Text()
 
-		if len(c.readScanner.Text()) == 0 {
-			return "", errors.New("Nothing was found")
+		if len(d.readScanner.Text()) == 0 {
+			return "", errors.New("nothing was found")
 		}
 	}
 
-	_, err := c.fileHandle.WriteAt([]byte("-"), c.tokenPosition)
-	if err != nil {
-		return "", err
+	if discardRecord == true {
+
+		_, err := d.fileHandle.WriteAt([]byte("-"), d.tokenPosition)
+		if err != nil {
+			return "", err
+		}
 	}
-	c.tokenPosition += int64(len(row) + 1)
+
+	d.tokenPosition += int64(len(row) + 1)
 
 	//only defer when in non-error state
-	defer c.seekNextRecord()
+	defer d.seekNextRecord()
 
-	return row, nil
+	if len(row) == 0 {
+		return "", nil
+	}
+
+	return row[1:], nil
 }
 
-func (c *ChanDB) write(payload string) error {
-	c.transactionLock.Lock()
-	defer c.transactionLock.Unlock()
+func (d *database) write(payload string) error {
+	d.transactionLock.Lock()
+	defer d.transactionLock.Unlock()
 
-	num, err := c.fileHandle.WriteAt([]byte(" "+payload+"\n"), c.dbSize)
+	num, err := d.fileHandle.WriteAt([]byte(" "+payload+"\n"), d.dbSize)
 
 	if err != nil {
 		log.Println("Error occurred when writing bytes with writeAt", err)
 		return err
 	}
 
-	c.dbSize += int64(num)
+	d.dbSize += int64(num)
 	return nil
+}
+
+func (d *database) truncate() error {
+
+	err := d.fileHandle.Truncate(0)
+	if err != nil {
+		return err
+	}
+
+	d.resetScanner()
+	d.dbSize = 0
+
+	return nil
+}
+
+func (d *database) close() error {
+	if d.fileHandle == nil {
+		return nil
+	}
+	defer d.fileHandle.Close()
+	d.syncQuitSignal <- true
+	d.syncQuitSignal = nil
+
+	return d.fileHandle.Sync()
 }
