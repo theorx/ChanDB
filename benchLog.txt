@@ -585,3 +585,4 @@ Benchmark time:3m50.384337195s
 ### Finished benchmark - 2019-11-14 00:07:04.710921932 +0200 EET m=+245.049132699 ###
 
 
+################## - after implementing Length()### Started benchmark - 2019-11-14 01:04:34.806701805 +0200 EET m=+0.000090799 ###

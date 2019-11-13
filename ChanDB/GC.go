@@ -2,7 +2,6 @@ package ChanDB
 
 import (
 	"io"
-	"log"
 	"os"
 	"time"
 )
@@ -38,7 +37,7 @@ func (m *manager) writeBackDataToMainDB() {
 
 		err = m.mainDB.write(msg)
 		if err != nil {
-			log.Println("GC final state error - writeBackDataToMainDB has failed:", err)
+			m.log("GC final state error - writeBackDataToMainDB has failed:", err)
 			return
 		}
 	}
@@ -46,7 +45,7 @@ func (m *manager) writeBackDataToMainDB() {
 	err := m.writeDB.truncate()
 
 	if err != nil {
-		log.Println("GC writeDB.truncate has failed:", err)
+		m.log("GC writeDB.truncate has failed:", err)
 	}
 }
 
@@ -58,19 +57,19 @@ func (m *manager) garbageCollect() {
 
 	err := m.gcDB.truncate()
 	if err != nil {
-		log.Print("GC failed, gcDB.truncate() error", err)
+		m.log("GC failed, gcDB.truncate() error", err)
 		return
 	}
 
 	err = m.moveRecordsToGCDB()
 	if err != nil {
-		log.Println("GC failed, moveRecordsToGCDB has failed:", err)
+		m.log("GC failed, moveRecordsToGCDB has failed:", err)
 		return
 	}
 
 	err = m.moveGCDataToMainDB()
 	if err != nil {
-		log.Println("GC Failed, moveGCDataToMainDB has failed:", err)
+		m.log("GC Failed, moveGCDataToMainDB has failed:", err)
 		return
 	}
 
@@ -132,12 +131,12 @@ func (m *manager) switchToNormalMode() {
 	m.writeLock.Lock()
 	defer m.writeLock.Unlock()
 
-	m.mode = NormalMode
+	m.mode = normalMode
 }
 
 func (m *manager) switchToGCMode() {
 	m.writeLock.Lock()
 	defer m.writeLock.Unlock()
 
-	m.mode = GCMode
+	m.mode = gcMode
 }

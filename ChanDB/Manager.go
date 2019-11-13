@@ -7,9 +7,11 @@ import (
 )
 
 const (
-	NormalMode int = 1
-	GCMode     int = 2
+	normalMode int = 1
+	gcMode     int = 2
 )
+
+type LogFunction func(v ...interface{})
 
 type Settings struct {
 	/**
@@ -24,11 +26,13 @@ type Settings struct {
 	*/
 	SyncSyscallIntervalMilliseconds  int
 	GarbageCollectionIntervalSeconds int
+	LogFunction                      LogFunction
 }
 
 type Database interface {
 	Read() (string, error)
 	Write(string) error
+	Length() int64
 	Close() error
 }
 
@@ -41,6 +45,7 @@ type manager struct {
 	writeDB      *database
 	mode         int
 	gcQuitSignal chan bool
+	log          LogFunction
 }
 
 func CreateDatabase(settings *Settings) (*manager, error) {
@@ -65,8 +70,15 @@ func CreateDatabase(settings *Settings) (*manager, error) {
 		settings.SyncSyscallIntervalMilliseconds = 100
 	}
 
+	if settings.LogFunction == nil {
+		//set the default logging function
+		settings.LogFunction = func(v ...interface{}) {
+		}
+	}
+
 	mgr := &manager{
 		settings: settings,
+		log:      settings.LogFunction,
 	}
 
 	return mgr, mgr.init()
@@ -74,7 +86,7 @@ func CreateDatabase(settings *Settings) (*manager, error) {
 
 func (m *manager) init() error {
 	//initialize values
-	m.mode = NormalMode
+	m.mode = normalMode
 	m.writeLock = &sync.Mutex{}
 	m.readLock = &sync.Mutex{}
 	m.gcQuitSignal = make(chan bool, 0)
@@ -84,6 +96,7 @@ func (m *manager) init() error {
 	m.mainDB = &database{
 		storageFile:              m.settings.DBFile,
 		syncIntervalMilliseconds: m.settings.SyncSyscallIntervalMilliseconds,
+		log:                      m.settings.LogFunction,
 	}
 
 	err := m.mainDB.loadDatabase()
@@ -95,6 +108,7 @@ func (m *manager) init() error {
 	m.writeDB = &database{
 		storageFile:              m.settings.WriteOnlyFile,
 		syncIntervalMilliseconds: m.settings.SyncSyscallIntervalMilliseconds,
+		log:                      m.settings.LogFunction,
 	}
 
 	err = m.writeDB.loadDatabase()
@@ -106,6 +120,7 @@ func (m *manager) init() error {
 	m.gcDB = &database{
 		storageFile:              m.settings.GCFile,
 		syncIntervalMilliseconds: m.settings.SyncSyscallIntervalMilliseconds,
+		log:                      m.settings.LogFunction,
 	}
 
 	err = m.gcDB.loadDatabase()
@@ -122,7 +137,7 @@ func (m *manager) init() error {
 func (m *manager) Write(payload string) (err error) {
 	m.writeLock.Lock()
 
-	if m.mode == GCMode {
+	if m.mode == gcMode {
 		err = m.writeDB.write(payload)
 	} else {
 		err = m.mainDB.write(payload)
@@ -140,6 +155,11 @@ func (m *manager) Read() (string, error) {
 	return result, err
 }
 
+func (m *manager) Length() int64 {
+
+	return m.mainDB.length()
+}
+
 func (m *manager) Close() error {
 	m.readLock.Lock()
 	m.writeLock.Lock()
@@ -148,7 +168,7 @@ func (m *manager) Close() error {
 
 	for {
 		time.Sleep(time.Millisecond * 10)
-		if m.mode == NormalMode {
+		if m.mode == normalMode {
 			break
 		}
 	}

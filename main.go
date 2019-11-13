@@ -14,6 +14,7 @@ func main() {
 		WriteOnlyFile:                    "data/write_db.txt",
 		SyncSyscallIntervalMilliseconds:  100,
 		GarbageCollectionIntervalSeconds: 2,
+		LogFunction:                      log.Println,
 	})
 
 	if err != nil {

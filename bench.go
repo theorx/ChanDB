@@ -331,6 +331,7 @@ func setupAndSeedDB(records int, gcSeconds int) ChanDB.Database {
 		WriteOnlyFile:                    writeFile,
 		SyncSyscallIntervalMilliseconds:  100,
 		GarbageCollectionIntervalSeconds: gcSeconds,
+		LogFunction:                      log.Println,
 	})
 
 	if err != nil {

@@ -3,9 +3,9 @@ package ChanDB
 import (
 	"bufio"
 	"io"
-	"log"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,6 +19,8 @@ type database struct {
 	syncQuitSignal           chan bool
 	syncIntervalMilliseconds int
 	scannerEOF               bool
+	log                      LogFunction
+	recordsStored            int64
 }
 
 func (d *database) resetScanner() {
@@ -27,7 +29,7 @@ func (d *database) resetScanner() {
 }
 
 func (d *database) loadDatabase() error {
-	log.Println("loadDatabase()", d.storageFile)
+	d.log("loadDatabase()", d.storageFile)
 
 	if d.transactionLock == nil {
 		d.transactionLock = &sync.Mutex{}
@@ -39,10 +41,15 @@ func (d *database) loadDatabase() error {
 	}
 
 	d.fileHandle = fh
-
-	//
 	d.scannerEOF = false
 
+	//count the database records
+	err = d.countRecords()
+
+	if err != nil {
+		d.log("Failed counting rows in countRecords() while initializing the database", err)
+		return err
+	}
 	//reset the scanner to position 0
 	d.resetScanner()
 
@@ -66,16 +73,16 @@ func (d *database) loadDatabase() error {
 }
 
 func (d *database) syncRoutine() {
-	log.Println("Starting sync routine for", d.storageFile)
+	d.log("Starting sync routine for", d.storageFile)
 	for {
 		select {
 		case <-d.syncQuitSignal:
-			log.Println("Quitting sync routine for", d.storageFile)
+			d.log("Quitting sync routine for", d.storageFile)
 			return
 		default:
 			err := d.fileHandle.Sync()
 			if err != nil {
-				log.Println("Sync error on file", d.storageFile, ":", err)
+				d.log("Sync error on file", d.storageFile, ":", err)
 			}
 			time.Sleep(time.Millisecond * time.Duration(d.syncIntervalMilliseconds))
 		}
@@ -99,7 +106,7 @@ func (d *database) seekNextRecord() bool {
 		_, err := d.fileHandle.Seek(seekPosition, io.SeekStart)
 
 		if err != nil {
-			log.Println("Failed to seek to new position after scannerEOF", seekPosition, err)
+			d.log("Failed to seek to new position after scannerEOF", seekPosition, err)
 		}
 
 		d.resetScanner()
@@ -138,11 +145,8 @@ func (d *database) read(discardRecord bool) (string, error) {
 	row := d.readScanner.Text()
 
 	if discardRecord == true {
-
-		//d.transactionLock.Lock()
 		_, err := d.fileHandle.WriteAt([]byte("-"), d.tokenPosition)
-		//d.transactionLock.Unlock()
-
+		d.decrementRecordsStored()
 		if err != nil {
 			return "", err
 		}
@@ -164,7 +168,8 @@ func (d *database) write(payload string) error {
 
 	if err != nil {
 		d.transactionLock.Unlock()
-		log.Println("Error occurred when writing bytes with writeAt", err)
+		d.incrementRecordsStored()
+		d.log("Error occurred when writing bytes with writeAt", err)
 		return err
 	}
 
@@ -195,4 +200,37 @@ func (d *database) close() error {
 	d.syncQuitSignal = nil
 
 	return d.fileHandle.Sync()
+}
+
+func (d *database) length() int64 {
+	return atomic.LoadInt64(&d.recordsStored)
+}
+
+func (d *database) incrementRecordsStored() {
+	atomic.AddInt64(&d.recordsStored, 1)
+}
+
+func (d *database) decrementRecordsStored() {
+	atomic.AddInt64(&d.recordsStored, -1)
+}
+
+func (d *database) setRecordsStored(count int64) {
+	atomic.StoreInt64(&d.recordsStored, count)
+}
+
+func (d *database) countRecords() error {
+	scanner := bufio.NewScanner(d.fileHandle)
+	records := int64(0)
+
+	for scanner.Scan() {
+		row := scanner.Text()
+
+		if row[:1] == " " {
+			records++
+		}
+	}
+	_, err := d.fileHandle.Seek(0, io.SeekStart)
+	atomic.StoreInt64(&d.recordsStored, records)
+
+	return err
 }
