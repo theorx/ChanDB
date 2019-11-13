@@ -87,20 +87,20 @@ func (d *database) seekNextRecord() bool {
 	//todo: figure out more efficient way for seeking and resetting the position after EOF
 
 	if d.scannerEOF {
-		log.Println("Scanner eof detected, creating new scanner")
 		//temporarily fuck with the locks
 		d.transactionLock.Unlock()
-		//time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Millisecond * 100)
 		d.scannerEOF = false
 		//here we will reset the position and create a new scanner
 
-		d.tokenPosition = 0 //todo, find out a better way
 		_, err := d.fileHandle.Seek(0, io.SeekStart)
 
 		if err != nil {
 			log.Println("Failed to seek to 0 position after scannerEOF", err)
 		}
-		d.readScanner = bufio.NewScanner(d.fileHandle)
+
+		d.resetScanner()
+
 		d.transactionLock.Lock()
 	}
 
@@ -110,14 +110,6 @@ func (d *database) seekNextRecord() bool {
 	for scanner.Scan() {
 		row := scanner.Text()
 
-		//Database out of bounds, no active records left
-		if len(row) == 0 && d.dbSize <= d.tokenPosition+1 {
-			log.Println("Reached the end of the file? record is empty, current position", position)
-			d.tokenPosition = d.dbSize
-			return true
-		}
-
-		//handle empty records
 		if len(row) == 0 && d.dbSize > d.tokenPosition+1 {
 			position += 1
 			continue

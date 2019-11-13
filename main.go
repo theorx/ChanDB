@@ -3,9 +3,6 @@ package main
 import (
 	"github.com/theorx/goDB/ChanDB"
 	"log"
-	"strconv"
-	"sync"
-	"time"
 )
 
 func main() {
@@ -22,42 +19,6 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-
-	wg := &sync.WaitGroup{}
-
-	wg.Add(2)
-
-	amount := 20000000
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < amount; i++ {
-			db.Write("test#" + strconv.Itoa(i))
-		}
-
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		for i := 0; i < 2750000; {
-			_, err := db.Read()
-
-			if err != nil {
-				//	log.Println("FOOKING ERROR MATE", err)
-			} else {
-				i++
-				//	log.Println("Successful read", msg)
-			}
-		}
-
-	}()
-
-	log.Println("Waiting for routines to finish")
-	wg.Wait()
-	log.Println("Waiting done!")
-
-	time.Sleep(time.Second * 3)
 
 	err = db.Close()
 

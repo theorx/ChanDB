@@ -26,6 +26,12 @@ type Settings struct {
 	GarbageCollectionIntervalSeconds int
 }
 
+type Database interface {
+	Read() (string, error)
+	Write(string) error
+	Close() error
+}
+
 type manager struct {
 	settings     *Settings
 	readLock     *sync.Mutex

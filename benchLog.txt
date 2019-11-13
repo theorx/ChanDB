@@ -1,0 +1,117 @@
+### Started benchmark - 2019-11-13 22:22:37.257986155 +0200 EET m=+0.000069433 ###
+5M w50-r50 50M seed					 - 6.441541878s
+	 Reads/s: 391048
+	 Writes/s: 388206
+	 Operations: 5000000
+20M writes					 - 20.917341797s
+	 Op/s: 956144
+	 Operations: 20000000
+20M reads					 - 18.424400059s
+	 Op/s: 1085517
+	 Operations: 20000000
+20M writes 100M seed					 - 21.319617629s
+	 Op/s: 938103
+	 Operations: 20000000
+20M reads 100M seed					 - 19.803177765s
+	 Op/s: 1009938
+	 Operations: 20000000
+20M w50-r50 50M seed					 - 23.859829941s
+	 Reads/s: 456355
+	 Writes/s: 419120
+	 Operations: 20000000
+20M w25-r75 50M seed					 - 21.250082756s
+	 Reads/s: 705880
+	 Writes/s: 415322
+	 Operations: 20000000
+20M w75-r25 50M seed					 - 22.062067183s
+	 Reads/s: 457582
+	 Writes/s: 679917
+	 Operations: 20000000
+20M w90-r10 50M seed					 - 21.569525588s
+	 Reads/s: 358297
+	 Writes/s: 834571
+	 Operations: 20000000
+20M w10-r90 50M seed					 - 19.82785193s
+	 Reads/s: 907814
+	 Writes/s: 357457
+	 Operations: 20000000
+20M w50-r50 no seed					 - 23.305494557s
+	 Reads/s: 429083
+	 Writes/s: 430299
+	 Operations: 20000000
+20M w75-r25 no seed					 - 21.588895911s
+	 Reads/s: 423260
+	 Writes/s: 694809
+	 Operations: 20000000
+20M w90-r10 no seed					 - 21.213633726s
+	 Reads/s: 403519
+	 Writes/s: 848530
+	 Operations: 20000000
+### Finished benchmark - 2019-11-13 22:27:14.697169213 +0200 EET m=+277.439252519 ###
+
+
+### Started benchmark - 2019-11-13 22:38:47.614957369 +0200 EET m=+0.000063353 ###
+5M w50-r50 50M seed					 - 5.889437314s
+	 Reads/s: 430293
+	 Writes/s: 424505
+	 Operations: 5000000
+20M writes					 - 20.986359897s
+	 Op/s: 952999
+	 Operations: 20000000
+20M reads					 - 18.56980061s
+	 Op/s: 1077017
+	 Operations: 20000000
+20M writes 100M seed					 - 21.822724288s
+	 Op/s: 916475
+	 Operations: 20000000
+20M reads 100M seed					 - 19.692662502s
+	 Op/s: 1015606
+	 Operations: 20000000
+20M w50-r50 50M seed					 - 22.843969791s
+	 Reads/s: 455104
+	 Writes/s: 437756
+	 Operations: 20000000
+20M w25-r75 50M seed					 - 20.906059576s
+	 Reads/s: 717496
+	 Writes/s: 435838
+	 Operations: 20000000
+20M w75-r25 50M seed					 - 22.110104616s
+	 Reads/s: 430582
+	 Writes/s: 678433
+	 Operations: 20000000
+20M w90-r10 50M seed					 - 21.999377016s
+	 Reads/s: 352216
+	 Writes/s: 818210
+	 Operations: 20000000
+20M w10-r90 50M seed					 - 20.053812129s
+	 Reads/s: 897585
+	 Writes/s: 378426
+	 Operations: 20000000
+20M w50-r50 no seed					 - 23.130810433s
+	 Reads/s: 432324
+	 Writes/s: 434779
+	 Operations: 20000000
+20M w75-r25 no seed					 - 21.746731506s
+	 Reads/s: 434443
+	 Writes/s: 689763
+	 Operations: 20000000
+20M w90-r10 no seed					 - 21.139564962s
+	 Reads/s: 427051
+	 Writes/s: 851487
+	 Operations: 20000000
+
+
+Benchmark results - 
+
+
+Read score:6669717
+
+
+Write score:7018671
+
+
+Benchmark time:4m20.89141464s
+### Finished benchmark - 2019-11-13 22:43:23.910666994 +0200 EET m=+276.295772973 ###
+
+
+### Started benchmark - 2019-11-13 22:46:21.56657729 +0200 EET m=+0.000107078 ###
