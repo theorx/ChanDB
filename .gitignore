@@ -1,4 +1,5 @@
 .idea/
 db.txt
 data/*
-bench/*
+bench/*git
+bin_bench

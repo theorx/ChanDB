@@ -84,24 +84,25 @@ func (d *database) syncRoutine() {
 
 func (d *database) seekNextRecord() bool {
 
-	//todo: figure out more efficient way for seeking and resetting the position after EOF
-
 	if d.scannerEOF {
-		//temporarily fuck with the locks
-		d.transactionLock.Unlock()
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Millisecond * 25)
 		d.scannerEOF = false
 		//here we will reset the position and create a new scanner
 
-		_, err := d.fileHandle.Seek(0, io.SeekStart)
+		seekPosition := d.tokenPosition - 100
+
+		if seekPosition < 0 {
+			seekPosition = 0
+		}
+		d.tokenPosition = seekPosition
+
+		_, err := d.fileHandle.Seek(seekPosition, io.SeekStart)
 
 		if err != nil {
-			log.Println("Failed to seek to 0 position after scannerEOF", err)
+			log.Println("Failed to seek to new position after scannerEOF", seekPosition, err)
 		}
 
 		d.resetScanner()
-
-		d.transactionLock.Lock()
 	}
 
 	position := d.tokenPosition
@@ -127,9 +128,6 @@ func (d *database) seekNextRecord() bool {
 }
 
 func (d *database) read(discardRecord bool) (string, error) {
-	d.transactionLock.Lock()
-	defer d.transactionLock.Unlock()
-
 	status := d.seekNextRecord()
 
 	if status == false {
@@ -137,16 +135,17 @@ func (d *database) read(discardRecord bool) (string, error) {
 		return "", io.EOF
 	}
 
-	//rework locking during reads, only lock when writing is required as well
 	row := d.readScanner.Text()
 
 	if discardRecord == true {
-		//only need transaction lock here
+
+		//d.transactionLock.Lock()
 		_, err := d.fileHandle.WriteAt([]byte("-"), d.tokenPosition)
+		//d.transactionLock.Unlock()
+
 		if err != nil {
 			return "", err
 		}
-		//end of locked section
 	}
 
 	d.tokenPosition += int64(len(row) + 1)
@@ -160,16 +159,17 @@ func (d *database) read(discardRecord bool) (string, error) {
 
 func (d *database) write(payload string) error {
 	d.transactionLock.Lock()
-	defer d.transactionLock.Unlock()
 
 	num, err := d.fileHandle.WriteAt([]byte(" "+payload+"\n"), d.dbSize)
 
 	if err != nil {
+		d.transactionLock.Unlock()
 		log.Println("Error occurred when writing bytes with writeAt", err)
 		return err
 	}
 
 	d.dbSize += int64(num)
+	d.transactionLock.Unlock()
 	return nil
 }
 

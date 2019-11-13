@@ -119,22 +119,25 @@ func (m *manager) init() error {
 	return nil
 }
 
-func (m *manager) Write(payload string) error {
+func (m *manager) Write(payload string) (err error) {
 	m.writeLock.Lock()
-	defer m.writeLock.Unlock()
 
 	if m.mode == GCMode {
-		return m.writeDB.write(payload)
+		err = m.writeDB.write(payload)
+	} else {
+		err = m.mainDB.write(payload)
 	}
+	m.writeLock.Unlock()
 
-	return m.mainDB.write(payload)
+	return err
 }
 
 func (m *manager) Read() (string, error) {
 	m.readLock.Lock()
-	defer m.readLock.Unlock()
+	result, err := m.mainDB.read(true)
+	m.readLock.Unlock()
 
-	return m.mainDB.read(true)
+	return result, err
 }
 
 func (m *manager) Close() error {

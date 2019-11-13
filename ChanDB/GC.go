@@ -15,8 +15,8 @@ func (m *manager) garbageCollectRoutine() {
 
 			return
 		default:
-			timeElapsed += time.Millisecond * 250
-			time.Sleep(time.Millisecond * 250)
+			timeElapsed += time.Millisecond * 25
+			time.Sleep(time.Millisecond * 25)
 
 			if timeElapsed < time.Second*time.Duration(m.settings.GarbageCollectionIntervalSeconds) {
 				continue
@@ -57,21 +57,18 @@ func (m *manager) garbageCollect() {
 	m.switchToGCMode()
 
 	err := m.gcDB.truncate()
-
 	if err != nil {
 		log.Print("GC failed, gcDB.truncate() error", err)
 		return
 	}
 
 	err = m.moveRecordsToGCDB()
-
 	if err != nil {
 		log.Println("GC failed, moveRecordsToGCDB has failed:", err)
 		return
 	}
 
 	err = m.moveGCDataToMainDB()
-
 	if err != nil {
 		log.Println("GC Failed, moveGCDataToMainDB has failed:", err)
 		return
