@@ -1,6 +1,7 @@
 package ChanDB
 
 import (
+	"io"
 	"log"
 	"os"
 	"time"
@@ -31,7 +32,7 @@ func (m *manager) writeBackDataToMainDB() {
 	for {
 		msg, err := m.writeDB.read(false)
 
-		if err != nil && err.Error() == "nothing was found" {
+		if err == io.EOF {
 			break
 		}
 
@@ -114,12 +115,12 @@ func (m *manager) moveRecordsToGCDB() error {
 	for {
 		msg, err := m.mainDB.read(false)
 
-		if err != nil && err.Error() == "nothing was found" {
+		if err == io.EOF {
 			return nil
 		}
 
 		if err != nil {
-			return nil
+			return err
 		}
 
 		err = m.gcDB.write(msg)

@@ -1,0 +1,2 @@
+clear:
+	rm data/*.txt

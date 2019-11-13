@@ -2,7 +2,7 @@ package ChanDB
 
 import (
 	"bufio"
-	"errors"
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -18,6 +18,7 @@ type database struct {
 	readScanner              *bufio.Scanner
 	syncQuitSignal           chan bool
 	syncIntervalMilliseconds int
+	scannerEOF               bool
 }
 
 func (d *database) resetScanner() {
@@ -39,6 +40,9 @@ func (d *database) loadDatabase() error {
 
 	d.fileHandle = fh
 
+	//
+	d.scannerEOF = false
+
 	//reset the scanner to position 0
 	d.resetScanner()
 
@@ -48,8 +52,6 @@ func (d *database) loadDatabase() error {
 		return err
 	}
 	d.dbSize = statInfo.Size()
-
-	log.Println("SIZE!!!", statInfo.Size())
 	//handle sync
 
 	if d.syncQuitSignal != nil {
@@ -71,17 +73,37 @@ func (d *database) syncRoutine() {
 			log.Println("Quitting sync routine for", d.storageFile)
 			return
 		default:
-			//log.Println("Syncing..")
-			//err := d.fileHandle.Sync()
-			//if err != nil {
-			//	log.Println("Sync error on file", d.storageFile, ":", err)
-			//}
+			err := d.fileHandle.Sync()
+			if err != nil {
+				log.Println("Sync error on file", d.storageFile, ":", err)
+			}
 			time.Sleep(time.Millisecond * time.Duration(d.syncIntervalMilliseconds))
 		}
 	}
 }
 
-func (d *database) seekNextRecord() {
+func (d *database) seekNextRecord() bool {
+
+	//todo: figure out more efficient way for seeking and resetting the position after EOF
+
+	if d.scannerEOF {
+		log.Println("Scanner eof detected, creating new scanner")
+		//temporarily fuck with the locks
+		d.transactionLock.Unlock()
+		//time.Sleep(time.Millisecond * 100)
+		d.scannerEOF = false
+		//here we will reset the position and create a new scanner
+
+		d.tokenPosition = 0 //todo, find out a better way
+		_, err := d.fileHandle.Seek(0, io.SeekStart)
+
+		if err != nil {
+			log.Println("Failed to seek to 0 position after scannerEOF", err)
+		}
+		d.readScanner = bufio.NewScanner(d.fileHandle)
+		d.transactionLock.Lock()
+	}
+
 	position := d.tokenPosition
 	scanner := d.readScanner
 
@@ -92,7 +114,7 @@ func (d *database) seekNextRecord() {
 		if len(row) == 0 && d.dbSize <= d.tokenPosition+1 {
 			log.Println("Reached the end of the file? record is empty, current position", position)
 			d.tokenPosition = d.dbSize
-			return
+			return true
 		}
 
 		//handle empty records
@@ -103,41 +125,39 @@ func (d *database) seekNextRecord() {
 
 		if row[:1] == " " {
 			d.tokenPosition = position
-			return
+			return true
 		}
 		position += int64(len(row) + 1)
 	}
 
 	d.tokenPosition = position
+	return false
 }
 
 func (d *database) read(discardRecord bool) (string, error) {
 	d.transactionLock.Lock()
 	defer d.transactionLock.Unlock()
 
-	row := d.readScanner.Text()
+	status := d.seekNextRecord()
 
-	if d.tokenPosition == 0 && len(row) == 0 || d.tokenPosition >= d.dbSize {
-		d.seekNextRecord()
-		row = d.readScanner.Text()
-
-		if len(d.readScanner.Text()) == 0 {
-			return "", errors.New("nothing was found")
-		}
+	if status == false {
+		d.scannerEOF = true
+		return "", io.EOF
 	}
 
-	if discardRecord == true {
+	//rework locking during reads, only lock when writing is required as well
+	row := d.readScanner.Text()
 
+	if discardRecord == true {
+		//only need transaction lock here
 		_, err := d.fileHandle.WriteAt([]byte("-"), d.tokenPosition)
 		if err != nil {
 			return "", err
 		}
+		//end of locked section
 	}
 
 	d.tokenPosition += int64(len(row) + 1)
-
-	//only defer when in non-error state
-	defer d.seekNextRecord()
 
 	if len(row) == 0 {
 		return "", nil
@@ -156,8 +176,6 @@ func (d *database) write(payload string) error {
 		log.Println("Error occurred when writing bytes with writeAt", err)
 		return err
 	}
-
-	log.Println(num, d.dbSize)
 
 	d.dbSize += int64(num)
 	return nil
