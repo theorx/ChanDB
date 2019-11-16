@@ -93,43 +93,29 @@ func (m *manager) init() error {
 	m.readLock = &sync.Mutex{}
 	m.gcQuitSignal = make(chan bool, 0)
 
+	//todo: optimize the code repetitions for creating the databases
 	//set-up database instances
 
-	m.mainDB = &database{
-		storageFile:              m.settings.DBFile,
-		syncIntervalMilliseconds: m.settings.SyncSyscallIntervalMilliseconds,
-		log:                      m.settings.LogFunction,
-	}
-
-	err := m.mainDB.loadDatabase()
-
+	instance, err := createDatabase(m.settings.DBFile, m.settings.SyncSyscallIntervalMilliseconds, m.settings.LogFunction)
 	if err != nil {
 		return err
 	}
 
-	m.writeDB = &database{
-		storageFile:              m.settings.WriteOnlyFile,
-		syncIntervalMilliseconds: m.settings.SyncSyscallIntervalMilliseconds,
-		log:                      m.settings.LogFunction,
-	}
+	m.mainDB = instance
 
-	err = m.writeDB.loadDatabase()
-
+	instance, err = createDatabase(m.settings.WriteOnlyFile, m.settings.SyncSyscallIntervalMilliseconds, m.settings.LogFunction)
 	if err != nil {
 		return err
 	}
 
-	m.gcDB = &database{
-		storageFile:              m.settings.GCFile,
-		syncIntervalMilliseconds: m.settings.SyncSyscallIntervalMilliseconds,
-		log:                      m.settings.LogFunction,
-	}
+	m.writeDB = instance
 
-	err = m.gcDB.loadDatabase()
-
+	instance, err = createDatabase(m.settings.GCFile, m.settings.SyncSyscallIntervalMilliseconds, m.settings.LogFunction)
 	if err != nil {
 		return err
 	}
+
+	m.gcDB = instance
 
 	go m.garbageCollectRoutine()
 
@@ -160,31 +146,10 @@ func (m *manager) Read() (string, error) {
 func (m *manager) Truncate() error {
 	m.readLock.Lock()
 	m.writeLock.Lock()
+	defer m.readLock.Unlock()
+	defer m.writeLock.Unlock()
 
-	errorMessage := ""
-
-	err := m.mainDB.truncate()
-	if err != nil {
-		errorMessage += err.Error() + "; "
-	}
-
-	err = m.gcDB.truncate()
-	if err != nil {
-		errorMessage += err.Error() + "; "
-	}
-
-	err = m.writeDB.truncate()
-	if err != nil {
-		errorMessage += err.Error() + "; "
-	}
-
-	m.readLock.Unlock()
-	m.writeLock.Unlock()
-
-	if len(errorMessage) > 0 {
-		return errors.New(errorMessage)
-	}
-	return nil
+	return joinErrors(m.mainDB.truncate(), m.gcDB.truncate(), m.writeDB.truncate())
 }
 
 func (m *manager) Length() int64 {
@@ -209,32 +174,29 @@ func (m *manager) Close() error {
 
 	m.gcQuitSignal <- true
 
-	errorMessage := ""
-	err := m.mainDB.close()
-
-	if err != nil {
-		errorMessage += err.Error() + ";"
-	}
-
-	err = m.writeDB.close()
-
-	if err != nil {
-		errorMessage += err.Error() + ";"
-	}
-
-	err = m.gcDB.close()
-
-	if err != nil {
-		errorMessage += err.Error() + ";"
-	}
-
-	if len(errorMessage) > 0 {
-		return errors.New(errorMessage)
-	}
-
-	return nil
+	return joinErrors(m.mainDB.close(), m.writeDB.close(), m.gcDB.close())
 }
 
 func (m *manager) ReadStream() Stream {
-	return createStream(m)
+
+	stream := createStream(m)
+	m.streams = append(m.streams, stream) //store the stream in the array
+
+	return stream
+}
+
+func joinErrors(v ...error) error {
+	errorState := false
+	errorString := ""
+	for _, err := range v {
+		if err != nil {
+			errorState = true
+			errorString += err.Error() + "; "
+		}
+	}
+
+	if errorState {
+		return errors.New(errorString)
+	}
+	return nil
 }

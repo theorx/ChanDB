@@ -2,9 +2,9 @@ package ChanDB
 
 import (
 	"bufio"
+	"errors"
 	"github.com/theorx/goDB/Signal"
 	"io"
-	"log"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -18,6 +18,7 @@ type database struct {
 	writeLock                *sync.Mutex
 	readLock                 *sync.Mutex
 	log                      LogFunction
+	subRoutineSpawnLock      *sync.Mutex
 	readStream               chan string
 	storageFile              string
 	dbSize                   int64
@@ -29,31 +30,39 @@ type database struct {
 	readStreamQuitSignal     chan bool
 }
 
+func createDatabase(dbFile string, syncIntervalMilliseconds int, logFunction LogFunction) (*database, error) {
+	if logFunction == nil {
+		return nil, errors.New("invalid log function given for createDatabase() function")
+	}
+
+	instance := &database{
+		signal:    Signal.CreateSignal(),
+		writeLock: &sync.Mutex{},
+		readLock:  &sync.Mutex{},
+		log: func(v ...interface{}) {
+			params := make([]interface{}, 0)
+			params = append(params, dbFile+" => ")
+			for _, param := range v {
+				params = append(params, param)
+			}
+			logFunction(params...)
+		},
+		subRoutineSpawnLock:      &sync.Mutex{},
+		readStream:               make(chan string, 0),
+		storageFile:              dbFile,
+		syncIntervalMilliseconds: syncIntervalMilliseconds,
+	}
+
+	return instance, instance.loadDatabase()
+}
+
 func (d *database) resetScanner() {
 	d.readScanner = bufio.NewScanner(d.fileHandle)
 	d.tokenPosition = 0
 }
 
 func (d *database) loadDatabase() error {
-	d.log("loadDatabase()", d.storageFile)
-
-	if d.writeLock == nil {
-		d.writeLock = &sync.Mutex{}
-	}
-
-	if d.readLock == nil {
-		d.readLock = &sync.Mutex{}
-	}
-
-	//create read stream
-	if d.readStream == nil {
-		d.readStream = make(chan string, 1)
-	}
-
-	//signal for streamReads()
-	if d.signal == nil {
-		d.signal = Signal.CreateSignal()
-	}
+	d.log("initializing database in the loadDatabase function")
 
 	fh, err := os.OpenFile(d.storageFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
@@ -64,45 +73,65 @@ func (d *database) loadDatabase() error {
 	d.scannerEOF = false
 
 	//count the database records
-	err = d.countRecords()
-
+	err = d.updateStoredRecords()
 	if err != nil {
-		d.log("Failed counting rows in countRecords() while initializing the database", err)
+		return err
+	}
+
+	//todo: handle header magic
+
+	err = d.setDatabaseSize()
+	if err != nil {
+		return err
+	}
+
+	d.spawnSyncRoutine()
+
+	return nil
+}
+
+func (d *database) updateStoredRecords() error {
+	err := d.countRecords()
+	if err != nil {
 		return err
 	}
 	//reset the scanner to position 0
 	d.resetScanner()
+	return nil
+}
 
+func (d *database) setDatabaseSize() error {
 	//write the database size (number of bytes within the file) to the internal variable
 	statInfo, err := d.fileHandle.Stat()
 	if err != nil {
 		return err
 	}
 	d.dbSize = statInfo.Size()
-	//handle sync
+	return nil
+}
 
+func (d *database) spawnSyncRoutine() {
+	d.subRoutineSpawnLock.Lock()
 	if d.syncQuitSignal != nil {
 		d.syncQuitSignal <- true
 	} else {
 		d.syncQuitSignal = make(chan bool, 0)
 	}
-
 	go d.syncRoutine()
-
-	return nil
+	d.subRoutineSpawnLock.Unlock()
 }
 
 func (d *database) syncRoutine() {
-	d.log("Starting sync routine for", d.storageFile)
+	d.log("Starting sync routine")
 	for {
 		select {
 		case <-d.syncQuitSignal:
-			d.log("Quitting sync routine for", d.storageFile)
+			d.log("Quitting sync routine")
 			return
 		default:
 			err := d.fileHandle.Sync()
 			if err != nil {
-				d.log("Sync error on file", d.storageFile, ":", err)
+				d.log("Sync error:", err)
 			}
 			time.Sleep(time.Millisecond * time.Duration(d.syncIntervalMilliseconds))
 		}
@@ -121,7 +150,7 @@ func (d *database) seekNextRecord() (string, bool) {
 		if seekPosition < 0 {
 			seekPosition = 0
 		}
-		d.tokenPosition = seekPosition
+		atomic.StoreInt64(&d.tokenPosition, seekPosition)
 
 		_, err := d.fileHandle.Seek(seekPosition, io.SeekStart)
 
@@ -174,10 +203,7 @@ func (d *database) read(discardRecord bool) (string, error) {
 		}
 	}
 
-	//d.readLock.Lock()
 	atomic.AddInt64(&d.tokenPosition, int64(len(row)+1))
-	//d.tokenPosition += int64(len(row) + 1)
-	//d.readLock.Unlock()
 
 	if len(row) == 0 {
 		return "", nil
@@ -187,11 +213,12 @@ func (d *database) read(discardRecord bool) (string, error) {
 }
 
 func (d *database) readStreamRoutine() {
-	d.log("Starting readStreamRoutine() for", d.storageFile)
+	d.log("Starting readStreamRoutine() ")
 	for {
 		select {
 		case <-d.readStreamQuitSignal:
-			d.log("Quitting readStreamRoutine() for", d.storageFile)
+			d.log("Quitting readStreamRoutine() ")
+			//d.readStreamQuitSignal = nil
 			return
 		default:
 
@@ -208,13 +235,13 @@ func (d *database) readStreamRoutine() {
 }
 
 func (d *database) streamReads() <-chan string {
-
+	d.subRoutineSpawnLock.Lock()
 	if d.readStreamQuitSignal == nil {
-		d.readStreamQuitSignal = make(chan bool, 0)
+		d.readStreamQuitSignal = make(chan bool, 1)
 		go d.readStreamRoutine()
 	}
+	d.subRoutineSpawnLock.Unlock()
 
-	//block until data is available
 	return d.readStream
 }
 
@@ -231,12 +258,12 @@ func (d *database) write(payload string) error {
 
 	d.dbSize += int64(num)
 	d.writeLock.Unlock()
+
 	d.incrementRecordsStored()
 	return nil
 }
 
 func (d *database) truncate() error {
-
 	err := d.fileHandle.Truncate(0)
 	if err != nil {
 		return err
@@ -257,21 +284,9 @@ all of it back before database file handles are closed
 */
 func (d *database) close() error {
 	d.readLock.Lock()
+	defer d.readLock.Unlock()
 	//write the records back from the readStream when shutting down
-writeBackLoop:
-	for {
-		select {
-		case row, _ := <-d.readStream:
-			log.Println("Writing back..", row)
-			err := d.write(row)
-
-			if err != nil {
-				d.log("database.close() failed to write back a records from readStream", row, err)
-			}
-		default:
-			break writeBackLoop
-		}
-	}
+	d.shutDownReadStream()
 
 	if d.fileHandle == nil {
 		return nil
@@ -281,11 +296,30 @@ writeBackLoop:
 	d.syncQuitSignal <- true
 	d.syncQuitSignal = nil
 
-	log.Println("Waiting for readStream to shut down")
-	//	d.readStreamQuitSignal <- true
-	//d.readStreamQuitSignal = nil
-
 	return d.fileHandle.Sync()
+}
+
+func (d *database) shutDownReadStream() {
+	d.subRoutineSpawnLock.Lock()
+	if len(d.readStreamQuitSignal) == 0 && d.readStreamQuitSignal != nil {
+		d.readStreamQuitSignal <- true
+	}
+
+writeBackLoop:
+	for {
+		select {
+		case row, _ := <-d.readStream:
+			err := d.write(row)
+			d.log("Got a record from shutDOwnReadStream() - writing it back", row)
+			if err != nil {
+				d.log("database.close() failed to write back a records from readStream", row, err)
+			}
+		default:
+			break writeBackLoop
+		}
+	}
+
+	d.subRoutineSpawnLock.Unlock()
 }
 
 func (d *database) length() int64 {
@@ -293,9 +327,7 @@ func (d *database) length() int64 {
 }
 
 func (d *database) incrementRecordsStored() {
-	//signal new insert
 	d.signal.Signal()
-
 	atomic.AddInt64(&d.recordsStored, 1)
 }
 

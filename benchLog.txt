@@ -586,3 +586,146 @@ Benchmark time:3m50.384337195s
 
 
 ################## - after implementing Length()### Started benchmark - 2019-11-14 01:04:34.806701805 +0200 EET m=+0.000090799 ###
+
+
+
+[34m### Started benchmark - [0m[36m2019-11-16 15:10:37.433402807 +0200 EET m=+0.000515998[0m[34m ###[0m
+[34m### Started benchmark - [0m[36m2019-11-16 15:10:46.727795942 +0200 EET m=+0.000064618[0m[34m ###[0m
+[34m### Started benchmark - [0m[36m2019-11-16 15:10:51.51475425 +0200 EET m=+0.000099760[0m[34m ###[0m
+[34m### Started benchmark - [0m[36m2019-11-16 15:11:25.048336041 +0200 EET m=+0.000606275[0m[34m ###[0m
+[33m#1 5M w50-r50 50M seed[0m		 - Op/s: 1130 K	4.515380425s
+	 Reads/s: 553 K
+	 Writes/s: 577 K
+[33m#2 20M writes[0m		 - Op/s: 968 K	20.643711866s
+[33m#3 20M reads[0m		 - Op/s: 1052 K	18.999378952s
+[33m#4 20M writes 100M seed[0m		 - Op/s: 952 K	21.007697972s
+[33m#5 20M reads 100M seed[0m		 - Op/s: 984 K	20.318281959s
+[33m#6 20M w50-r50 50M seed[0m		 - Op/s: 1113 K	18.023515002s
+	 Reads/s: 554 K
+	 Writes/s: 559 K
+[33m#7 20M w25-r75 50M seed[0m		 - Op/s: 1385 K	18.209829038s
+	 Reads/s: 823 K
+	 Writes/s: 562 K
+[33m#8 20M w75-r25 50M seed[0m		 - Op/s: 1334 K	19.180816165s
+	 Reads/s: 552 K
+	 Writes/s: 782 K
+[33m#9 20M w90-r10 50M seed[0m		 - Op/s: 1440 K	20.315940811s
+	 Reads/s: 554 K
+	 Writes/s: 886 K
+[33m#10 20M w10-r90 50M seed[0m		 - Op/s: 1574 K	17.938779412s
+	 Reads/s: 1003 K
+	 Writes/s: 571 K
+[33m#11 20M w50-r50 no seed[0m		 - Op/s: 1133 K	17.801343406s
+	 Reads/s: 561 K
+	 Writes/s: 572 K
+[33m#12 20M w75-r25 no seed[0m		 - Op/s: 1343 K	18.990331899s
+	 Reads/s: 554 K
+	 Writes/s: 789 K
+[33m#13 20M w90-r10 no seed[0m		 - Op/s: 1461 K	19.863266298s
+	 Reads/s: 555 K
+	 Writes/s: 906 K
+[36m
+
+Benchmark results[0m
+Read score:[36m7752 K[0m
+Write score:[31m8128 K[0m
+Total score:[33m15880 K[0m
+
+Benchmark time:3m55.808273205s
+[34m### Finished benchmark - [0m[36m2019-11-16 15:17:00.446868306 +0200 EET m=+335.399138479[0m[34m ###
+
+
+[34m### Started benchmark - [0m[36m2019-11-16 19:03:26.66948104 +0200 EET m=+0.000084867[0m[34m ###[0m
+[33m#1 5M w50-r50 50M seed[0m		 - Op/s: 1122 K	4.481278047s
+	 Reads/s: 557 K
+	 Writes/s: 565 K
+[33m#2 20M writes[0m		 - Op/s: 975 K	20.50164541s
+[33m#3 20M reads[0m		 - Op/s: 1109 K	18.033673655s
+[33m#4 20M writes 100M seed[0m		 - Op/s: 945 K	21.148904686s
+[33m#5 20M reads 100M seed[0m		 - Op/s: 1090 K	18.335347355s
+[33m#6 20M w50-r50 50M seed[0m		 - Op/s: 1126 K	17.817337367s
+	 Reads/s: 561 K
+	 Writes/s: 565 K
+[33m#7 20M w25-r75 50M seed[0m		 - Op/s: 1374 K	18.21826999s
+	 Reads/s: 823 K
+	 Writes/s: 551 K
+[33m#8 20M w75-r25 50M seed[0m		 - Op/s: 1331 K	19.291315299s
+	 Reads/s: 554 K
+	 Writes/s: 777 K
+[33m#9 20M w90-r10 50M seed[0m		 - Op/s: 1392 K	20.509321288s
+	 Reads/s: 515 K
+	 Writes/s: 877 K
+[33m#10 20M w10-r90 50M seed[0m		 - Op/s: 1532 K	18.380617664s
+	 Reads/s: 979 K
+	 Writes/s: 553 K
+[33m#11 20M w50-r50 no seed[0m		 - Op/s: 1129 K	17.861569043s
+	 Reads/s: 559 K
+	 Writes/s: 570 K
+[33m#12 20M w75-r25 no seed[0m		 - Op/s: 1336 K	19.128440941s
+	 Reads/s: 552 K
+	 Writes/s: 784 K
+[33m#13 20M w90-r10 no seed[0m		 - Op/s: 1454 K	19.93289663s
+	 Reads/s: 551 K
+	 Writes/s: 903 K
+[36m
+
+Benchmark results[0m
+Read score:[36m7854 K[0m
+Write score:[31m8069 K[0m
+Total score:[33m15923 K[0m
+
+Benchmark time:3m53.640617375s
+[34m### Finished benchmark - [0m[36m2019-11-16 19:07:57.796859363 +0200 EET m=+271.127463190[0m[34m ###
+
+
+[34m### Started benchmark - [0m[36m2019-11-16 19:52:37.254642205 +0200 EET m=+0.000087027[0m[34m ###[0m
+[34m### Stream benchmarks ----> [0m
+[33mStream #1 5M 10R 50M seed[0m		 - Op/s: 668 K	7.484612574s
+[33mStream #2 20M 100R 50M seed[0m		 - Op/s: 646 K	30.951710768s
+[33mStream #3 20M 10R 50M seed[0m		 - Op/s: 678 K	29.468634331s
+[33mStream #4 5M 100R 20M seed[0m		 - Op/s: 633 K	7.8901053s
+[34m### Stream score [0m [36m2626 K[0m
+[34m### Regular benchmarks ----> [0m
+[33m#1 5M w50-r50 50M seed[0m		 - Op/s: 1109 K	4.567657774s
+	 Reads/s: 547 K
+	 Writes/s: 562 K
+[33m#2 20M writes[0m		 - Op/s: 959 K	20.840907009s
+[33m#3 20M reads[0m		 - Op/s: 1099 K	18.182951523s
+[33m#4 20M writes 100M seed[0m		 - Op/s: 961 K	20.805477226s
+[33m#5 20M reads 100M seed[0m		 - Op/s: 1090 K	18.346033838s
+[33m#6 20M w50-r50 50M seed[0m		 - Op/s: 1114 K	17.973364097s
+	 Reads/s: 558 K
+	 Writes/s: 556 K
+[33m#7 20M w25-r75 50M seed[0m		 - Op/s: 1388 K	18.157286771s
+	 Reads/s: 826 K
+	 Writes/s: 562 K
+[33m#8 20M w75-r25 50M seed[0m		 - Op/s: 1316 K	19.669948162s
+	 Reads/s: 554 K
+	 Writes/s: 762 K
+[33m#9 20M w90-r10 50M seed[0m		 - Op/s: 1428 K	20.264260322s
+	 Reads/s: 540 K
+	 Writes/s: 888 K
+[33m#10 20M w10-r90 50M seed[0m		 - Op/s: 1547 K	18.104179133s
+	 Reads/s: 994 K
+	 Writes/s: 553 K
+[33m#11 20M w50-r50 no seed[0m		 - Op/s: 1130 K	17.918526661s
+	 Reads/s: 558 K
+	 Writes/s: 572 K
+[33m#12 20M w75-r25 no seed[0m		 - Op/s: 1305 K	19.510567689s
+	 Reads/s: 537 K
+	 Writes/s: 768 K
+[33m#13 20M w90-r10 no seed[0m		 - Op/s: 1446 K	19.935821621s
+	 Reads/s: 544 K
+	 Writes/s: 902 K
+[36m
+
+Benchmark results[0m
+Read score:[36m7851 K[0m
+Write score:[31m8050 K[0m
+Total score:[33m15902 K[0m
+Stream score:[36m2626 K[0m
+
+Benchmark time:3m54.276981826s
+[34m### Finished benchmark - [0m[36m2019-11-16 19:58:33.219629614 +0200 EET m=+355.965074426[0m[34m ###
+
+[0m

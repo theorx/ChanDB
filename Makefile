@@ -1,5 +1,7 @@
 clear:
 	rm data/*.txt
+	rm bench/*.txt
+	rm bench/cache/*.txt
 build:
 	go build -o bin_bench bench.go
 benchmark:

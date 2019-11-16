@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -39,12 +40,21 @@ type MixedResults struct {
 var totalWritesPerSec = 0
 var totalReadsPerSec = 0
 var totalBenchTime time.Duration = 0
+var totalStreamScore = 0
 
 func main() {
 	openLog()
 	writeLog(blue("### Started benchmark - ") + green(time.Now().String()) + blue(" ###"))
 	generateSeedCaches()
 
+	writeLog(blue("### Stream benchmarks ----> "))
+	writeStats(yellow("Stream #1 5M 10R 50M seed"), benchStream(SEED_5_MIL, 10, SEED_50_MIL), SEED_5_MIL)
+	writeStats(yellow("Stream #2 20M 100R 50M seed"), benchStream(SEED_20_MIL, 100, SEED_50_MIL), SEED_20_MIL)
+	writeStats(yellow("Stream #3 20M 10R 50M seed"), benchStream(SEED_20_MIL, 10, SEED_50_MIL), SEED_20_MIL)
+	writeStats(yellow("Stream #4 5M 100R 20M seed"), benchStream(SEED_5_MIL, 100, SEED_20_MIL), SEED_5_MIL)
+	writeLog(blue("### Stream score ") + " " + green(strconv.Itoa(totalStreamScore/1000)+" K"))
+
+	writeLog(blue("### Regular benchmarks ----> "))
 	writeStatsMixed(yellow("#1 5M w50-r50 50M seed"), benchMixed(SEED_5_MIL, 50, 50, SEED_50_MIL))
 	writeStats(yellow("#2 20M writes"), benchWrite20MIL(), SEED_20_MIL)
 	writeStats(yellow("#3 20M reads"), benchRead20MIL(), SEED_20_MIL)
@@ -63,6 +73,7 @@ func main() {
 	writeLog("Read score:" + green(strconv.Itoa(totalReadsPerSec/1000)+" K"))
 	writeLog("Write score:" + red(strconv.Itoa(totalWritesPerSec/1000)+" K"))
 	writeLog("Total score:" + yellow(strconv.Itoa((totalWritesPerSec+totalReadsPerSec)/1000)+" K"))
+	writeLog("Stream score:" + green(strconv.Itoa(totalStreamScore/1000)+" K"))
 	writeLog("\nBenchmark time:" + totalBenchTime.String())
 	writeLog(blue("### Finished benchmark - ") + green(time.Now().String()) + blue(" ###\n\n"))
 }
@@ -108,6 +119,7 @@ func writeStatsMixed(line string, result *MixedResults) {
 	writeLog("\t Writes/s: " + strconv.Itoa(int(float64(result.WriteRecords)/result.WriteTime.Seconds())/1000) + " K")
 
 }
+
 func benchMixed(records int, writePercent int, readPercent int, seed int) *MixedResults {
 
 	truncate()
@@ -183,6 +195,7 @@ func benchMixed(records int, writePercent int, readPercent int, seed int) *Mixed
 		ReadRecords:  readRecords,
 	}
 }
+
 func benchRead20MIL100MSeed() time.Duration {
 	truncate()
 	db := setupAndSeedDB(SEED_100_MIL, 10000)
@@ -216,6 +229,36 @@ func benchRead20MIL100MSeed() time.Duration {
 
 	return totalTime
 }
+
+func benchStream(records int, readers int, seed int) time.Duration {
+	truncate()
+	db := setupAndSeedDB(seed, 10000)
+	defer deferClose(db)
+
+	counter := int64(0)
+	start := time.Now().UnixNano()
+	for i := 0; i < readers; i++ {
+		go func() {
+			stream := db.ReadStream()
+			for range stream.Stream() {
+				atomic.AddInt64(&counter, 1)
+			}
+		}()
+	}
+
+	for {
+		time.Sleep(time.Millisecond * 50)
+		if atomic.LoadInt64(&counter) >= int64(records) {
+			break
+		}
+	}
+
+	duration := time.Duration(time.Now().UnixNano() - start)
+	totalStreamScore += int(float64(records) / duration.Seconds())
+
+	return duration
+}
+
 func benchWrite20MIL100MSeed() time.Duration {
 	truncate()
 	db := setupAndSeedDB(SEED_100_MIL, 10000)
