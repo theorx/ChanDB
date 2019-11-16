@@ -152,7 +152,7 @@ func (d *database) seekNextRecord() (string, bool) {
 		position += int64(len(row) + 1)
 	}
 	d.readLock.Unlock()
-	
+
 	atomic.StoreInt64(&d.tokenPosition, position)
 
 	return "", false
