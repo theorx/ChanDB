@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/theorx/goDB/ChanDB"
+	"github.com/theorx/ChanDB/pkg/ChanDB"
 	"log"
 )
 
@@ -20,7 +20,6 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-
 
 	err = db.Close()
 

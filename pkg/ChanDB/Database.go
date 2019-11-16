@@ -3,7 +3,7 @@ package ChanDB
 import (
 	"bufio"
 	"errors"
-	"github.com/theorx/goDB/Signal"
+	"github.com/theorx/ChanDB/pkg/Signal"
 	"io"
 	"os"
 	"sync"

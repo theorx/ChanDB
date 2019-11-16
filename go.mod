@@ -1,4 +1,4 @@
-module github.com/theorx/goDB
+module github.com/theorx/ChanDB
 
 go 1.13
 
