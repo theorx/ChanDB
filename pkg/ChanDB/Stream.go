@@ -1,6 +1,7 @@
 package ChanDB
 
 import (
+	"sync"
 	"time"
 )
 
@@ -15,6 +16,7 @@ type stream struct {
 	killSignal chan bool
 	done       chan bool
 	isOpen     bool
+	closeLock  *sync.Mutex
 }
 
 func createStream(manager *manager) *stream {
@@ -23,6 +25,7 @@ func createStream(manager *manager) *stream {
 		out:        make(chan string),
 		killSignal: make(chan bool, 1),
 		done:       make(chan bool, 1),
+		closeLock:  &sync.Mutex{},
 		isOpen:     true,
 	}
 
@@ -48,6 +51,8 @@ func (s *stream) streamRoutine() {
 }
 
 func (s *stream) Close() error {
+	s.closeLock.Lock()
+	defer s.closeLock.Unlock()
 	//already closed
 	if s.isOpen == false {
 		return nil
