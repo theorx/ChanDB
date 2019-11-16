@@ -21,6 +21,7 @@ func main() {
 		log.Println(err)
 	}
 
+
 	err = db.Close()
 
 	if err != nil {

@@ -3,7 +3,6 @@ package ChanDB
 import (
 	"errors"
 	"sync"
-	"time"
 )
 
 const (
@@ -33,6 +32,8 @@ type Database interface {
 	Read() (string, error)
 	Write(string) error
 	Length() int64
+	ReadStream() Stream
+	Truncate() error
 	Close() error
 }
 
@@ -46,6 +47,7 @@ type manager struct {
 	mode         int
 	gcQuitSignal chan bool
 	log          LogFunction
+	streams      []Stream
 }
 
 func CreateDatabase(settings *Settings) (*manager, error) {
@@ -155,21 +157,53 @@ func (m *manager) Read() (string, error) {
 	return result, err
 }
 
+func (m *manager) Truncate() error {
+	m.readLock.Lock()
+	m.writeLock.Lock()
+
+	errorMessage := ""
+
+	err := m.mainDB.truncate()
+	if err != nil {
+		errorMessage += err.Error() + "; "
+	}
+
+	err = m.gcDB.truncate()
+	if err != nil {
+		errorMessage += err.Error() + "; "
+	}
+
+	err = m.writeDB.truncate()
+	if err != nil {
+		errorMessage += err.Error() + "; "
+	}
+
+	m.readLock.Unlock()
+	m.writeLock.Unlock()
+
+	if len(errorMessage) > 0 {
+		return errors.New(errorMessage)
+	}
+	return nil
+}
+
 func (m *manager) Length() int64 {
 
 	return m.mainDB.length()
 }
 
 func (m *manager) Close() error {
+	//acquire locks
 	m.readLock.Lock()
 	m.writeLock.Lock()
 	defer m.readLock.Unlock()
 	defer m.writeLock.Unlock()
 
-	for {
-		time.Sleep(time.Millisecond * 10)
-		if m.mode == normalMode {
-			break
+	//first close all of the reading streams before acquiring locks
+	for _, stream := range m.streams {
+		err := stream.Close()
+		if err != nil {
+			m.log("Failed closing stream", err)
 		}
 	}
 
@@ -199,4 +233,8 @@ func (m *manager) Close() error {
 	}
 
 	return nil
+}
+
+func (m *manager) ReadStream() Stream {
+	return createStream(m)
 }

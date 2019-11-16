@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/theorx/goDB/ChanDB"
 	"io"
 	"log"
@@ -17,15 +18,15 @@ const (
 	gcFile       string = "bench/gc_file.txt"
 	writeFile    string = "bench/write_file.txt"
 	SEED_1_MIL   int    = 1000000
-	SEED_5_MIL   int    = SEED_1_MIL * 5
-	SEED_20_MIL  int    = SEED_1_MIL * 20
-	SEED_50_MIL  int    = SEED_1_MIL * 50
-	SEED_100_MIL int    = SEED_1_MIL * 100
+	SEED_5_MIL          = SEED_1_MIL * 5
+	SEED_20_MIL         = SEED_1_MIL * 20
+	SEED_50_MIL         = SEED_1_MIL * 50
+	SEED_100_MIL        = SEED_1_MIL * 100
 	DataStr      string = "twitchtwitchtwitchtwitchtwitch"
 )
 
 var logFH *os.File = nil
-var cacheMap map[int]string = make(map[int]string)
+var cacheMap = make(map[int]string)
 
 type MixedResults struct {
 	TotalTime    time.Duration
@@ -41,28 +42,29 @@ var totalBenchTime time.Duration = 0
 
 func main() {
 	openLog()
-	writeLog("### Started benchmark - " + time.Now().String() + " ###")
+	writeLog(blue("### Started benchmark - ") + green(time.Now().String()) + blue(" ###"))
 	generateSeedCaches()
 
-	writeStatsMixed("#1 5M w50-r50 50M seed", benchMixed(SEED_5_MIL, 50, 50, SEED_50_MIL))
-	writeStats("#2 20M writes", benchWrite20MIL(), SEED_20_MIL)
-	writeStats("#3 20M reads", benchRead20MIL(), SEED_20_MIL)
-	writeStats("#4 20M writes 100M seed", benchWrite20MIL100MSeed(), SEED_20_MIL)
-	writeStats("#5 20M reads 100M seed", benchRead20MIL100MSeed(), SEED_20_MIL)
-	writeStatsMixed("#6 20M w50-r50 50M seed", benchMixed(SEED_20_MIL, 50, 50, SEED_50_MIL))
-	writeStatsMixed("#7 20M w25-r75 50M seed", benchMixed(SEED_20_MIL, 25, 75, SEED_50_MIL))
-	writeStatsMixed("#8 20M w75-r25 50M seed", benchMixed(SEED_20_MIL, 75, 25, SEED_50_MIL))
-	writeStatsMixed("#9 20M w90-r10 50M seed", benchMixed(SEED_20_MIL, 90, 10, SEED_50_MIL))
-	writeStatsMixed("#10 20M w10-r90 50M seed", benchMixed(SEED_20_MIL, 10, 90, SEED_50_MIL))
-	writeStatsMixed("#11 20M w50-r50 no seed", benchMixed(SEED_20_MIL, 50, 50, 0))
-	writeStatsMixed("#12 20M w75-r25 no seed", benchMixed(SEED_20_MIL, 75, 25, 0))
-	writeStatsMixed("#13 20M w90-r10 no seed", benchMixed(SEED_20_MIL, 90, 10, 0))
+	writeStatsMixed(yellow("#1 5M w50-r50 50M seed"), benchMixed(SEED_5_MIL, 50, 50, SEED_50_MIL))
+	writeStats(yellow("#2 20M writes"), benchWrite20MIL(), SEED_20_MIL)
+	writeStats(yellow("#3 20M reads"), benchRead20MIL(), SEED_20_MIL)
+	writeStats(yellow("#4 20M writes 100M seed"), benchWrite20MIL100MSeed(), SEED_20_MIL)
+	writeStats(yellow("#5 20M reads 100M seed"), benchRead20MIL100MSeed(), SEED_20_MIL)
+	writeStatsMixed(yellow("#6 20M w50-r50 50M seed"), benchMixed(SEED_20_MIL, 50, 50, SEED_50_MIL))
+	writeStatsMixed(yellow("#7 20M w25-r75 50M seed"), benchMixed(SEED_20_MIL, 25, 75, SEED_50_MIL))
+	writeStatsMixed(yellow("#8 20M w75-r25 50M seed"), benchMixed(SEED_20_MIL, 75, 25, SEED_50_MIL))
+	writeStatsMixed(yellow("#9 20M w90-r10 50M seed"), benchMixed(SEED_20_MIL, 90, 10, SEED_50_MIL))
+	writeStatsMixed(yellow("#10 20M w10-r90 50M seed"), benchMixed(SEED_20_MIL, 10, 90, SEED_50_MIL))
+	writeStatsMixed(yellow("#11 20M w50-r50 no seed"), benchMixed(SEED_20_MIL, 50, 50, 0))
+	writeStatsMixed(yellow("#12 20M w75-r25 no seed"), benchMixed(SEED_20_MIL, 75, 25, 0))
+	writeStatsMixed(yellow("#13 20M w90-r10 no seed"), benchMixed(SEED_20_MIL, 90, 10, 0))
 
-	writeLog("\n\nBenchmark results - ")
-	writeLog("Read score:" + strconv.Itoa(totalReadsPerSec))
-	writeLog("Write score:" + strconv.Itoa(totalWritesPerSec))
+	writeLog(green("\n\nBenchmark results"))
+	writeLog("Read score:" + green(strconv.Itoa(totalReadsPerSec/1000)+" K"))
+	writeLog("Write score:" + red(strconv.Itoa(totalWritesPerSec/1000)+" K"))
+	writeLog("Total score:" + yellow(strconv.Itoa((totalWritesPerSec+totalReadsPerSec)/1000)+" K"))
 	writeLog("\nBenchmark time:" + totalBenchTime.String())
-	writeLog("### Finished benchmark - " + time.Now().String() + " ###\n\n")
+	writeLog(blue("### Finished benchmark - ") + green(time.Now().String()) + blue(" ###\n\n"))
 }
 
 func generateSeedCaches() {
@@ -97,15 +99,14 @@ func generateSeedCaches() {
 }
 
 func writeStats(line string, duration time.Duration, records int) {
-	writeLog(line + "\t\t\t\t\t - " + duration.String())
-	writeLog("\t Op/s: " + strconv.Itoa(int(float64(records)/duration.Seconds())))
-	writeLog("\t Operations: " + strconv.Itoa(int(records)))
+	writeLog(line + "\t\t - " + "Op/s: " + strconv.Itoa(int(float64(records)/duration.Seconds())/1000) + " K\t" + duration.String())
+	//	writeLog("\t Operations: " + strconv.Itoa(records))
 }
 func writeStatsMixed(line string, result *MixedResults) {
-	writeLog(line + "\t\t\t\t\t - " + result.TotalTime.String())
-	writeLog("\t Reads/s: " + strconv.Itoa(int(float64(result.ReadRecords)/result.ReadTime.Seconds())))
-	writeLog("\t Writes/s: " + strconv.Itoa(int(float64(result.WriteRecords)/result.WriteTime.Seconds())))
-	writeLog("\t Operations: " + strconv.Itoa(int(result.ReadRecords+result.WriteRecords)))
+	writeLog(line + "\t\t - " + "Op/s: " + strconv.Itoa(int(float64(result.ReadRecords)/result.ReadTime.Seconds())/1000+int(float64(result.WriteRecords)/result.WriteTime.Seconds())/1000) + " K\t" + result.TotalTime.String())
+	writeLog("\t Reads/s: " + strconv.Itoa(int(float64(result.ReadRecords)/result.ReadTime.Seconds())/1000) + " K")
+	writeLog("\t Writes/s: " + strconv.Itoa(int(float64(result.WriteRecords)/result.WriteTime.Seconds())/1000) + " K")
+
 }
 func benchMixed(records int, writePercent int, readPercent int, seed int) *MixedResults {
 
@@ -381,4 +382,20 @@ func writeLog(line string) {
 	if err != nil {
 		log.Fatalln("Failed to write log, aborting:", err)
 	}
+}
+
+func yellow(str string) string {
+	return fmt.Sprintf("\u001b[33m%s\u001b[0m", str)
+}
+
+func green(str string) string {
+	return fmt.Sprintf("\u001b[36m%s\u001b[0m", str)
+}
+
+func blue(str string) string {
+	return fmt.Sprintf("\u001b[34m%s\u001b[0m", str)
+}
+
+func red(str string) string {
+	return fmt.Sprintf("\u001b[31m%s\u001b[0m", str)
 }
