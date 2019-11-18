@@ -1,19 +1,31 @@
 # ChanDB
 
 ## Author
+* Lauri Orgla `theorx@hotmail.com`
 
 ## Description
+*FIFO (First in, first out) database for storing content from a channel
+ (go channel) persistently. Meant to be used as a persistent queue.*
+*This database is a GO library, that can be embedded within any go project.
+ No searching or indexing features are implemented, when you read a record 
+ from the database, then the record gets deleted.*
 
 ## API Overview
 
 ```go
 
 type Database interface {
-	Read() (string, error)
-	Write(string) error
+    /* Reading will discard the record from the database */
+	Read() (string, error) 
+    /* Returns the number of active records from the database */
 	Length() int64
-	ReadStream() Stream
+	/* Writes data to the database */
+	Write(string) error 
+    /* Opens a channel for streaming records from the database, once record is receive it will no longer be stored in the database*/
+	ReadStream() Stream 
+    /* Truncates the database contents */
 	Truncate() error
+    /* Closes database instance and makes sure, that all of the data is persisted to the disk, cleans up */
 	Close() error
 }
 
@@ -22,21 +34,178 @@ type Database interface {
 
 # Usage
 
+*__Important:__ In order to make sure that all of the data persists `db.Close()` has to be called after db instance is not needed or program exists.*
 
+### Database settings
+
+* type LogFunction func(v ...interface{})  <- Compatible with log.Println
+
+
+```go
+
+type Settings struct {
+	/**
+	Files where database data is being stored
+	All of these files are required for the database to operate properly
+	*/
+	DBFile string
+	/**
+	Garbage collection file, used for temporarily storing all active records while deleting all
+	records that are marked for deletion
+	*/
+	GCFile string
+	/**
+	Write-only file that will be used while garbage collection is active. All of the writes are applied to
+	write-only file while gc is in progress and after gc has finished, all of the write-only database records
+	will be written to the main database
+	*/
+	WriteOnlyFile string
+	/**
+	Sync syscall will be called for each database instance, minimum value is 100ms
+	*/
+	SyncSyscallIntervalMilliseconds int
+	/**
+	Minimum value for GC interval is 10 seconds
+	*/
+	GarbageCollectionIntervalSeconds int
+	/**
+	Log function, compatible with log package (log.Println)
+	*/
+	LogFunction LogFunction
+}
+```
 
 ### Creating database instance
 
+```go
+
+	db, err := ChanDB.CreateDatabase(&ChanDB.Settings{
+		DBFile:                           "db_file.txt",
+		GCFile:                           "gc_file.txt",
+		WriteOnlyFile:                    "wo_file.txt",
+		SyncSyscallIntervalMilliseconds:  1000,
+		GarbageCollectionIntervalSeconds: 300,
+		LogFunction:                      log.Println,
+	})
+
+
+```
+
 ### Basic operations
 
+```go
+
+//Writing to the database
+
+	err := db.Write(payload)
+
+	if err != nil {
+		//handle the error
+	}
+
+
+//Reading from the database
+
+	data, err := db.Read()
+
+	if err != nil {
+		//handle the error
+	}
+
+	log.Println(data)
+
+//Truncating database
+
+	err := db.Truncate()
+
+	if err != nil {
+		//handle error
+	}
+
+//Get the number of active records
+
+	length := db.Length()
+	
+
+//Closing the database
+
+	err := db.Close()
+
+	if err != nil {
+		//handle error
+	}
+
+
+```
+
+
 ### Streaming reads from the database
+*Streams are go channels that provide data from the database via channel interface*
+*Once you receive a record from the channel, it is already deleted from the database*
+
+```go
+
+//writing some records to the database first
+	db.Write("test1")
+	db.Write("test2")
+	db.Write("test3")
+	db.Write("test4")
+	db.Write("test5")
+	db.Write("test6")
+	db.Write("test7")
+	db.Write("test8")
+
+	stream := db.ReadStream()
+
+	for msg := range stream.Stream() {
+		log.Println(msg)
+	}
+	err := stream.Close()
+
+	if err != nil {
+		//handle error
+	}
+
+// output:
+
+$ go run main.go 
+23:04:07 test1
+23:04:07 test2
+23:04:07 test3
+23:04:07 test4
+23:04:07 test5
+23:04:07 test6
+23:04:07 test7
+23:04:07 test8
+
+
+```
+
+
 
 ### Benchmarking 
 
-* Go get and go install the library `go get -u github.com/theorx/ChanDB/cmd/bench-db`
+*Go get and go install the library:*
+* `go get -u github.com/theorx/ChanDB/cmd/bench-db`
+* `go install github.com/theorx/ChanDB/cmd/bench-db`
+
+```bash
+
+$ bench-db -h 
+Usage of bench-db:
+  -bench-dir string
+    	Benchmark directory to store temporary files (default "bench")
+  -log string
+    	Log file path (default "benchLog.txt")
 
 
+```
 
-
+* running bench-db requires approx 8 gigs free ram and 10 gigabytes of
+ free disk space to complete the benchmark. The RAM requirement is related
+ to some kind of bug where RAM is not being freed up after writing benchmark
+ cache files to the disk
+ 
 
 ## Benchmarks
 

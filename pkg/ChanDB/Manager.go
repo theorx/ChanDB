@@ -18,10 +18,18 @@ type Settings struct {
 	Files where database data is being stored
 	All of these files are required for the database to operate properly
 	*/
-	DBFile        string
-	GCFile        string
+	DBFile string
+	/**
+	Garbage collection file, used for temporarily storing all active records while deleting all
+	records that are marked for deletion
+	*/
+	GCFile string
+	/**
+	Write-only file that will be used while garbage collection is active. All of the writes are applied to
+	write-only file while gc is in progress and after gc has finished, all of the write-only database records
+	will be written to the main database
+	*/
 	WriteOnlyFile string
-
 	/**
 	Sync syscall will be called for each database instance, minimum value is 100ms
 	*/
@@ -30,15 +38,24 @@ type Settings struct {
 	Minimum value for GC interval is 10 seconds
 	*/
 	GarbageCollectionIntervalSeconds int
-	LogFunction                      LogFunction
+	/**
+	Log function, compatible with log package (log.Println)
+	*/
+	LogFunction LogFunction
 }
 
 type Database interface {
+	/* Reading will discard the record from the database */
 	Read() (string, error)
-	Write(string) error
+	/* Returns the number of active records from the database */
 	Length() int64
+	/* Writes data to the database */
+	Write(string) error
+	/* Opens a channel for streaming records from the database, once record is receive it will no longer be stored in the database*/
 	ReadStream() Stream
+	/* Truncates the database contents */
 	Truncate() error
+	/* Closes database instance and makes sure, that all of the data is persisted to the disk, cleans up */
 	Close() error
 }
 

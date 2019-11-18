@@ -1,5 +1,9 @@
 package Signal
 
+/**
+This is used for signaling the readStream that there has been new
+activity on the database and it's time to start reading again
+*/
 type Signal struct {
 	signal chan bool
 }
