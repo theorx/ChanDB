@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	normalMode int = 1
-	gcMode     int = 2
+	initialMode int = 0
+	normalMode  int = 1
+	gcMode      int = 2
 )
 
 type LogFunction func(v ...interface{})
@@ -88,7 +89,6 @@ func CreateDatabase(settings *Settings) (*manager, error) {
 
 func (m *manager) init() error {
 	//initialize values
-	m.mode = normalMode
 	m.writeLock = &sync.Mutex{}
 	m.readLock = &sync.Mutex{}
 	m.gcQuitSignal = make(chan bool, 0)
@@ -118,6 +118,9 @@ func (m *manager) init() error {
 	m.gcDB = instance
 
 	go m.garbageCollectRoutine()
+
+	//database successfully running
+	m.mode = normalMode
 
 	return nil
 }
@@ -158,6 +161,10 @@ func (m *manager) Length() int64 {
 }
 
 func (m *manager) Close() error {
+	if m.mode == initialMode {
+		return errors.New("database is not running, CreateDatabase must have failed")
+	}
+
 	//acquire locks
 	m.readLock.Lock()
 	m.writeLock.Lock()

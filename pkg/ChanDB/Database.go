@@ -3,8 +3,10 @@ package ChanDB
 import (
 	"bufio"
 	"errors"
+	"github.com/theorx/ChanDB/internal/Version"
 	"github.com/theorx/ChanDB/pkg/Signal"
 	"io"
+	"log"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -19,6 +21,7 @@ type database struct {
 	readLock                 *sync.Mutex
 	log                      LogFunction
 	subRoutineSpawnLock      *sync.Mutex
+	header                   *Header
 	readStream               chan string
 	storageFile              string
 	dbSize                   int64
@@ -51,6 +54,9 @@ func createDatabase(dbFile string, syncIntervalMilliseconds int, logFunction Log
 		readStream:               make(chan string, 0),
 		storageFile:              dbFile,
 		syncIntervalMilliseconds: syncIntervalMilliseconds,
+		header: &Header{
+			Version: Version.Version,
+		},
 	}
 
 	return instance, instance.loadDatabase()
@@ -58,7 +64,7 @@ func createDatabase(dbFile string, syncIntervalMilliseconds int, logFunction Log
 
 func (d *database) resetScanner() {
 	d.readScanner = bufio.NewScanner(d.fileHandle)
-	d.tokenPosition = 0
+	atomic.StoreInt64(&d.tokenPosition, HeaderBytes)
 }
 
 func (d *database) loadDatabase() error {
@@ -72,15 +78,23 @@ func (d *database) loadDatabase() error {
 	d.fileHandle = fh
 	d.scannerEOF = false
 
-	//count the database records
-	err = d.updateStoredRecords()
+	err = d.setDatabaseSize()
 	if err != nil {
 		return err
 	}
 
-	//todo: handle header magic
+	err = d.header.Read(d.fileHandle)
 
-	err = d.setDatabaseSize()
+	if err != nil {
+		log.Println("CCC Reading records from disk..")
+		err = d.updateStoredRecords()
+		if err != nil {
+			return err
+		}
+	}
+
+	d.header.Records = d.recordsStored
+	err = d.header.Write(d.fileHandle)
 	if err != nil {
 		return err
 	}
@@ -147,8 +161,8 @@ func (d *database) seekNextRecord() (string, bool) {
 
 		seekPosition := d.tokenPosition - 100
 
-		if seekPosition < 0 {
-			seekPosition = 0
+		if seekPosition < HeaderBytes {
+			seekPosition = HeaderBytes
 		}
 		atomic.StoreInt64(&d.tokenPosition, seekPosition)
 
@@ -272,8 +286,10 @@ func (d *database) truncate() error {
 	d.resetScanner()
 	d.dbSize = 0
 	d.recordsStored = 0
+	d.header.Records = 0
+	//update the header after truncate
 
-	return nil
+	return d.header.Write(d.fileHandle)
 }
 
 /**
@@ -292,6 +308,14 @@ func (d *database) close() error {
 		return nil
 	}
 	defer d.fileHandle.Close()
+
+	//update the number of records stored in the header
+	d.header.Records = d.recordsStored
+	err := d.header.Write(d.fileHandle)
+
+	if err != nil {
+		return err
+	}
 
 	d.syncQuitSignal <- true
 	d.syncQuitSignal = nil
@@ -340,18 +364,23 @@ func (d *database) setRecordsStored(count int64) {
 }
 
 func (d *database) countRecords() error {
-	//todo implement header
+	_, err := d.fileHandle.Seek(HeaderBytes, io.SeekStart)
+
+	if err != nil {
+		return err
+	}
+
 	scanner := bufio.NewScanner(d.fileHandle)
 	records := int64(0)
 
 	for scanner.Scan() {
 		row := scanner.Text()
 
-		if row[:1] == " " {
+		if len(row) > 1 && row[:1] == " " {
 			records++
 		}
 	}
-	_, err := d.fileHandle.Seek(0, io.SeekStart)
+	_, err = d.fileHandle.Seek(HeaderBytes, io.SeekStart)
 	atomic.StoreInt64(&d.recordsStored, records)
 
 	return err

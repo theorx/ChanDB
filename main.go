@@ -19,11 +19,15 @@ func main() {
 
 	if err != nil {
 		log.Println(err)
+
 	}
+
+	db.Write("test 44")
 
 	err = db.Close()
 
 	if err != nil {
 		log.Println("Database closing failed:", err)
 	}
+	log.Println("Closed the database..")
 }
