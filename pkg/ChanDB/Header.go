@@ -13,6 +13,10 @@ import (
 //implement all of the header functions
 const HeaderBytes = 128
 
+/**
+Database header storing version and records information, records only stores the number of
+active records in the database, deleted records are not accounted for
+*/
 type Header struct {
 	Records int64  `json:"records"`
 	Version string `json:"version"`

@@ -6,7 +6,6 @@ import (
 	"github.com/theorx/ChanDB/internal/Version"
 	"github.com/theorx/ChanDB/pkg/Signal"
 	"io"
-	"log"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -57,6 +56,7 @@ func createDatabase(dbFile string, syncIntervalMilliseconds int, logFunction Log
 		header: &Header{
 			Version: Version.Version,
 		},
+		tokenPosition: HeaderBytes,
 	}
 
 	return instance, instance.loadDatabase()
@@ -78,15 +78,9 @@ func (d *database) loadDatabase() error {
 	d.fileHandle = fh
 	d.scannerEOF = false
 
-	err = d.setDatabaseSize()
-	if err != nil {
-		return err
-	}
-
 	err = d.header.Read(d.fileHandle)
 
 	if err != nil {
-		log.Println("CCC Reading records from disk..")
 		err = d.updateStoredRecords()
 		if err != nil {
 			return err
@@ -95,6 +89,13 @@ func (d *database) loadDatabase() error {
 
 	d.header.Records = d.recordsStored
 	err = d.header.Write(d.fileHandle)
+	if err != nil {
+		return err
+	}
+
+	d.tokenPosition = HeaderBytes
+
+	err = d.setDatabaseSize()
 	if err != nil {
 		return err
 	}
@@ -154,26 +155,7 @@ func (d *database) syncRoutine() {
 
 func (d *database) seekNextRecord() (string, bool) {
 
-	if d.scannerEOF {
-		time.Sleep(time.Millisecond * 25)
-		d.scannerEOF = false
-		//here we will reset the position and create a new scanner
-
-		seekPosition := d.tokenPosition - 100
-
-		if seekPosition < HeaderBytes {
-			seekPosition = HeaderBytes
-		}
-		atomic.StoreInt64(&d.tokenPosition, seekPosition)
-
-		_, err := d.fileHandle.Seek(seekPosition, io.SeekStart)
-
-		if err != nil {
-			d.log("Failed to seek to new position after scannerEOF", seekPosition, err)
-		}
-
-		d.resetScanner()
-	}
+	d.handleScannerEOF()
 
 	position := atomic.LoadInt64(&d.tokenPosition)
 	scanner := d.readScanner
@@ -201,6 +183,29 @@ func (d *database) seekNextRecord() (string, bool) {
 	return "", false
 }
 
+func (d *database) handleScannerEOF() {
+	if d.scannerEOF {
+		time.Sleep(time.Millisecond * 25)
+		d.scannerEOF = false
+		//here we will reset the position and create a new scanner
+
+		seekPosition := d.tokenPosition - 100
+
+		if seekPosition < HeaderBytes {
+			seekPosition = HeaderBytes
+		}
+		atomic.StoreInt64(&d.tokenPosition, seekPosition)
+
+		_, err := d.fileHandle.Seek(seekPosition, io.SeekStart)
+
+		if err != nil {
+			d.log("Failed to seek to new position after scannerEOF", seekPosition, err)
+		}
+
+		d.resetScanner()
+	}
+}
+
 func (d *database) read(discardRecord bool) (string, error) {
 	row, status := d.seekNextRecord()
 
@@ -210,6 +215,7 @@ func (d *database) read(discardRecord bool) (string, error) {
 	}
 
 	if discardRecord == true {
+
 		_, err := d.fileHandle.WriteAt([]byte("-"), d.tokenPosition)
 		d.decrementRecordsStored()
 		if err != nil {
@@ -329,7 +335,6 @@ func (d *database) shutDownReadStream() {
 		d.readStreamQuitSignal <- true
 	}
 
-writeBackLoop:
 	for {
 		select {
 		case row, _ := <-d.readStream:
@@ -339,11 +344,11 @@ writeBackLoop:
 				d.log("database.close() failed to write back a records from readStream", row, err)
 			}
 		default:
-			break writeBackLoop
+			d.subRoutineSpawnLock.Unlock()
+			return
+
 		}
 	}
-
-	d.subRoutineSpawnLock.Unlock()
 }
 
 func (d *database) length() int64 {

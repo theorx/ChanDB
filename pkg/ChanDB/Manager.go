@@ -16,15 +16,19 @@ type LogFunction func(v ...interface{})
 type Settings struct {
 	/**
 	Files where database data is being stored
+	All of these files are required for the database to operate properly
 	*/
 	DBFile        string
 	GCFile        string
 	WriteOnlyFile string
 
 	/**
-	Sync syscall will be called for each database instance
+	Sync syscall will be called for each database instance, minimum value is 100ms
 	*/
-	SyncSyscallIntervalMilliseconds  int
+	SyncSyscallIntervalMilliseconds int
+	/**
+	Minimum value for GC interval is 10 seconds
+	*/
 	GarbageCollectionIntervalSeconds int
 	LogFunction                      LogFunction
 }
@@ -65,8 +69,8 @@ func CreateDatabase(settings *Settings) (*manager, error) {
 		return nil, errors.New("no WriteOnlyFile given in Settings")
 	}
 
-	if settings.GarbageCollectionIntervalSeconds < 1 {
-		settings.GarbageCollectionIntervalSeconds = 1
+	if settings.GarbageCollectionIntervalSeconds < 10 {
+		settings.GarbageCollectionIntervalSeconds = 10
 	}
 
 	if settings.SyncSyscallIntervalMilliseconds < 100 {

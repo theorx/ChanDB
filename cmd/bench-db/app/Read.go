@@ -9,7 +9,12 @@ import (
 
 func (b *Benchmark) benchRead(records int, seed int) time.Duration {
 	b.truncate()
-	db := b.setupAndSeedDB(records+seed, 10000)
+
+	if seed == seedNone {
+		seed = records
+	}
+
+	db := b.setupAndSeedDB(seed, 10000)
 	defer b.deferClose(db)
 
 	start := time.Now().UnixNano()

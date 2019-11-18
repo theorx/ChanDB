@@ -55,7 +55,7 @@ func (b *Benchmark) benchMixed(records int, writePercent int, readPercent int, s
 			}
 
 			if fails == 50 { //threshold for failing, takes approx 5 seconds to fail
-				log.Fatalln("Failed reading for 50 times in benchMixed()", records, writePercent, readPercent, seed, err)
+				log.Fatalln("Failed reading for 50 times in benchMixed()", i, records, writePercent, readPercent, seed, err)
 			}
 		}
 

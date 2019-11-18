@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -58,7 +57,7 @@ func (b *Benchmark) setupAndSeedDB(records int, gcSeconds int) ChanDB.Database {
 
 			num, err := io.Copy(dbFH, cacheFH)
 
-			log.Println("Used cache and copied:", num)
+			log.Println("Used cache and copied:", num, file)
 
 			if err != nil {
 				log.Fatalln("Failed to copy cache data to db file", err)
@@ -125,6 +124,19 @@ func (b *Benchmark) generateSeedCaches() {
 			log.Fatalln("Failed to create cache file for", records, "with name", name)
 		}
 
+		h := &ChanDB.Header{
+			Records: int64(records),
+			Version: "benchmark",
+		}
+
+		err = h.Write(fh)
+
+		fh.Seek(ChanDB.HeaderBytes, io.SeekStart)
+
+		if err != nil {
+			log.Fatalln("Failed to write header to the cache file")
+		}
+
 		statInfo, err := fh.Stat()
 
 		if err != nil {
@@ -154,22 +166,4 @@ func (b *Benchmark) deferClose(db ChanDB.Database) {
 	if err != nil {
 		log.Fatalln("Failed db close in defer..", err)
 	}
-}
-
-func repeat(s string, count int) strings.Builder {
-
-	n := len(s) * count
-	var b strings.Builder
-	b.Grow(n)
-	b.WriteString(s)
-	for b.Len() < n {
-		if b.Len() <= n/2 {
-			b.WriteString(b.String())
-		} else {
-			b.WriteString(b.String()[:n-b.Len()])
-			break
-		}
-	}
-
-	return b
 }

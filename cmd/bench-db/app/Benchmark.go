@@ -42,6 +42,9 @@ func CreateBenchmark(benchDirectory string, logFile string) *Benchmark {
 	return bm
 }
 
+/**
+The main benchmark that is being executed with `go run cmd/bench-db/bench-db.go`
+*/
 func (b *Benchmark) Run() {
 	b.openLog()
 	b.writeLog(blue("### Started benchmark - ") + green(time.Now().String()) + blue(" ###"))
